@@ -12,7 +12,7 @@ When GitHub Pages is enabled for the parent repository's `main` branch, the prot
 
 https://ko449-wq.github.io/cub-critics/
 
-The preview currently includes responsive layout, fictional venue cards, client-side search, category filters, sorting, an illustrative open-status filter, and sample venue detail dialogs. **Authentication, actual reviews, moderation, persistence, and any live campus venue data are not implemented.**
+The preview currently includes a responsive landing page, nine fictional venue cards, menu detail dialogs, keyword search, category filters, sorting, an illustrative availability filter, a random venue picker, and a saved-venue shortlist stored only in the current browser. It also includes keyboard-friendly dialog controls and mobile navigation. **Authentication, real review submissions, moderation, database persistence, and verified campus venue data are not implemented in this static frontend.**
 
 ## Team
 
@@ -62,15 +62,26 @@ python -m http.server 8000
 
 Visit `http://localhost:8000`.
 
+Run dependency-free frontend tests with Node.js 22+:
+
+```sh
+node --check app.js
+node --test tests/*.test.cjs
+```
+
+The frontend smoke-check GitHub Action runs these checks on relevant pull requests. The separate `server/` application has its own setup, environment variables, PostgreSQL dependency and tests.
+
 ## Repo layout
 
 ```text
 cub-critics/
   index.html          Landing page and preview UI
   styles.css          Responsive layout and design
-  app.js              Fictional data, search/filter/sort, venue dialogs
+  app.js              Fictional data, search/filter/sort, saved shortlist, venue dialogs
   README.md           Project overview and next steps
   CONTRIBUTING.md     Working agreements
+  tests/              Dependency-free Node.js frontend regression tests
+  .github/workflows/   Frontend pull-request checks
 ```
 
 ## Engineering notes
