@@ -70,7 +70,7 @@ describe('no SQL built from strings (SC#4)', () => {
   test('no application, migration or seeder file contains one', () => {
     const files = sourceFiles(ROOT);
     // Make sure the scan is real: it must cover the places that actually run SQL.
-    const names = files.map((f) => path.relative(ROOT, f));
+    const names = files.map((f) => path.relative(ROOT, f).split(path.sep).join('/'));
     expect(names).toEqual(
       expect.arrayContaining([
         'services/authService.js',
