@@ -122,6 +122,7 @@ function init() {
     const wasSaved = saved.has(id);
     if (wasSaved) saved.delete(id);
     else saved.add(id);
+    const fromGrid = Boolean(origin && grid.contains(origin));
     saveToBrowser();
     render();
     const dialogButton = $("dialog-content").querySelector("[data-save]");
@@ -130,7 +131,7 @@ function init() {
       dialogButton.setAttribute("aria-pressed", String(!wasSaved));
       dialogButton.textContent = wasSaved ? "♡ Save venue" : "♥ Saved";
     }
-    if (origin && grid.contains(origin)) {
+    if (fromGrid) {
       const replacement = grid.querySelector('[data-save="' + id + '"]');
       if (replacement) replacement.focus();
       else $("saved-only").focus();
