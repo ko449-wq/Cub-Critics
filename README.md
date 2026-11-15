@@ -10,7 +10,7 @@ Cub Critics is a student-led, mobile-friendly campus dining discovery and review
 
 When GitHub Pages is enabled for the parent repository's `main` branch, the prototype is intended to be available at:
 
-https://ko449-wq.github.io/cub-critics/
+https://ko449-wq.github.io/Cub-Critics/
 
 The preview currently includes a responsive landing page, nine fictional venue cards, menu detail dialogs, keyword search, category filters, sorting, an illustrative availability filter, a random venue picker, and a saved-venue shortlist stored only in the current browser. It also includes keyboard-friendly dialog controls and mobile navigation. **Authentication, real review submissions, moderation, database persistence, and verified campus venue data are not implemented in this static frontend.**
 
