@@ -95,3 +95,28 @@ cub-critics/
 ## Project provenance
 
 Based on the Gladiators Project Proposal (September 22, 2026), WBS/budget and sprint schedule, and Cub Critics Software Requirements Specification (October 2026). Professor Jeffrey Tirschman is the academic sponsor. This is an independent student course project, not an official university dining service.
+
+## Review-first frontend update (Nov 21, 2026)
+
+The original prototype now includes a **complete, clearly labeled interactive review journey**:
+
+- Venue cards expose both **Read reviews** and **★ Write review**. The modal has separate **Student reviews** and **Menu & details** tabs.
+- Reviews show star ratings, author handles, example feedback, timestamps, sort controls, and an obvious rating composer.
+- Students can choose 1–5 stars, optionally write up to 1,000 characters, submit, revisit, edit or delete their own review with a confirmation. **My reviews** shows their review history.
+- Browser demo mode stores one review per venue in the browser's `localStorage`. All sample venues, example authors and sample reviews are fictional. This deliberately does **not** claim server persistence.
+- Live mode connects to the existing Express API for real venue discovery, student authentication, review CRUD, review history and report actions; the API enforces ownership and session permissions. In live mode menu items and operating hours come from the backend.
+
+### Running in live database mode
+
+Set the page's `window.CUB_CRITICS_API_BASE` value in `index.html` **before** `review-experience.js` loads. Examples:
+
+- **Local:** `window.CUB_CRITICS_API_BASE = "http://localhost:3001/api";`
+- **Production:** `window.CUB_CRITICS_API_BASE = "https://your-api-host.example/api";` (replace with the actual deployed API endpoint)
+
+Start the Express server and PostgreSQL as documented in `server/README.md`, configure its `ALLOWED_ORIGINS` to include the frontend's exact origin, and verify that the banner reads **Live database connected**. Session cookies require `credentials: 'include'`, which the frontend sends. For cross-site production hosting, confirm HTTPS, `SameSite`/`Secure` cookie settings and CORS configuration work together; simply changing this string does not deploy the backend.
+
+If a configured API is unreachable, the UI shows an error and disables writing demo reviews rather than silently implying that the database worked. If no API is configured, the site stays in explicitly labeled browser-demo mode. Never record the browser demo as proof of database writes.
+
+**Tests:** `node --check app.js && node --check review-experience.js && node --test tests/*.test.cjs`.
+
+**Final presentation:** See [`DEMO_WALKTHROUGH.md`](./DEMO_WALKTHROUGH.md) for Jeff's requested voice-over demo outline with database read/write evidence and sprint-process explanation.
