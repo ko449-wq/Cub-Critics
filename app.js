@@ -37,8 +37,7 @@ function filterVenues(venues, filters, saved = new Set()) {
 function loadSaved() {
   try {
     const stored = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
-    const validIds = new Set(sampleVenues.map(venue => venue.id));
-    return new Set(Array.isArray(stored) ? stored.filter(id => Number.isInteger(id) && validIds.has(id)) : []);
+    return new Set(Array.isArray(stored) ? stored.filter(id => Number.isSafeInteger(id) && id > 0) : []);
   } catch (_) {
     return new Set();
   }
@@ -50,7 +49,10 @@ function init() {
   if (!grid) return;
   const filters = initialFilters();
   const saved = loadSaved();
-  const categories = ["All", ...new Set(sampleVenues.map(venue => venue.category))];
+  let activeVenues = sampleVenues;
+  let liveSource = false;
+  let searchTimer;
+  let searchSeq = 0;
   const categoryContainer = $("categories");
   const dialog = $("venue-dialog");
   let lastDialogTrigger = null;
@@ -61,14 +63,18 @@ function init() {
     catch (_) { announce("Saved venues cannot be stored in this browser session."); }
   };
 
-  categoryContainer.innerHTML = categories.map(category => {
-    const count = category === "All" ? sampleVenues.length : sampleVenues.filter(venue => venue.category === category).length;
+  function renderCategories() {
+    const categories = ["All", ...new Set(activeVenues.map(venue => venue.category))];
+    categoryContainer.innerHTML = categories.map(category => {
+    const count = category === "All" ? activeVenues.length : activeVenues.filter(venue => venue.category === category).length;
     return '<button class="filter-btn" type="button" data-category="' + escapeHtml(category) + '" aria-pressed="false"><span aria-hidden="true">' +
       escapeHtml(categoryIcons[category] || "✦") + '</span> ' + escapeHtml(category) + ' <span class="chip-count">' + count + '</span></button>';
   }).join("");
+  }
+  renderCategories();
 
   function render() {
-    const matches = filterVenues(sampleVenues, filters, saved);
+    const matches = filterVenues(activeVenues, liveSource ? { ...filters, query: "" } : filters, saved);
     categoryContainer.querySelectorAll("[data-category]").forEach(button => {
       const active = button.dataset.category === filters.category;
       button.classList.toggle("active", active);
@@ -77,47 +83,50 @@ function init() {
     $("saved-only").classList.toggle("active", filters.savedOnly);
     $("saved-only").setAttribute("aria-pressed", String(filters.savedOnly));
     $("saved-count").textContent = String(saved.size);
-    $("result-count").textContent = matches.length + " of " + sampleVenues.length + " sample venues";
+    $("result-count").textContent = matches.length + " of " + activeVenues.length + (liveSource ? " campus venues" : " sample venues");
     $("random-venue").disabled = matches.length === 0;
     grid.hidden = matches.length === 0;
     $("empty-state").hidden = matches.length > 0;
     grid.innerHTML = matches.map(venue => {
       const isSaved = saved.has(venue.id);
+      const countLabel = liveSource ? 'verified in database' : 'fictional';
       return '<article class="venue-card" style="--card-light:' + venue.colors[0] + ';--card-dark:' + venue.colors[1] + '">' +
-        '<div class="card-art"><span class="card-top-tag">✦ CONCEPT VENUE</span>' +
+        '<div class="card-art"><span class="card-top-tag">' + (liveSource ? '✦ CAMPUS VENUE' : '✦ CONCEPT VENUE') + '</span>' +
         '<span class="food-emoji" aria-hidden="true">' + venue.emoji + '</span>' +
         '<button class="save-button' + (isSaved ? ' is-saved' : '') + '" type="button" data-save="' + venue.id + '" aria-pressed="' + isSaved + '" aria-label="' + (isSaved ? 'Remove ' : 'Save ') + escapeHtml(venue.name) + (isSaved ? ' from saved venues' : ' to saved venues') + '">' +
         (isSaved ? '♥' : '♡') + '</button></div>' +
         '<div class="card-body"><div class="card-topline"><span class="card-category">' + escapeHtml(venue.category) + '</span>' +
-        '<span class="hours-status' + (venue.open ? ' open' : '') + '"><span class="status-dot"></span>' + (venue.open ? 'Sample open' : 'Sample closed') + '</span></div>' +
+        '<span class="hours-status' + (venue.open ? ' open' : '') + '"><span class="status-dot"></span>' + (liveSource ? (venue.open ? 'Open now' : 'Closed now') : (venue.open ? 'Sample open' : 'Sample closed')) + '</span></div>' +
         '<h3>' + escapeHtml(venue.name) + '</h3><p class="card-desc">' + escapeHtml(venue.summary) + '</p>' +
         '<div class="card-tags">' + venue.tags.map(tag => '<span>' + escapeHtml(tag) + '</span>').join("") + '</div>' +
-        '<div class="card-bottom"><div class="card-rating"><span class="star" aria-hidden="true">★</span><strong>' + venue.rating.toFixed(1) + '</strong><span> (' + venue.reviews + ' fictional)</span></div>' +
-        '<button type="button" class="details-button" data-venue="' + venue.id + '" aria-label="View sample menu for ' + escapeHtml(venue.name) + '">View menu <span aria-hidden="true">↗</span></button></div></div></article>';
+        '<div class="card-bottom"><div class="card-rating"><span class="star" aria-hidden="true">★</span><strong>' + (venue.reviews ? venue.rating.toFixed(1) : 'New') + '</strong><span> (' + venue.reviews + ' ' + countLabel + ')</span></div>' +
+        '<div class="card-actions"><button type="button" class="details-button" data-venue="' + venue.id + '" data-tab="reviews" aria-label="Read reviews for ' + escapeHtml(venue.name) + '">Read reviews ↗</button>' +
+        '<button type="button" class="card-review-button" data-venue="' + venue.id + '" data-tab="reviews" aria-label="Write a review for ' + escapeHtml(venue.name) + '">★ Write review</button></div></div></div></article>';
     }).join("");
   }
 
-  function showVenue(venue, trigger) {
+  function showVenue(venue, trigger, tab = "reviews") {
     if (!venue) return;
     lastDialogTrigger = trigger || document.activeElement;
     const isSaved = saved.has(venue.id);
     $("dialog-content").innerHTML =
       '<div class="dialog-art" style="--card-light:' + venue.colors[0] + ';--card-dark:' + venue.colors[1] + '">' +
-      '<span aria-hidden="true">' + venue.emoji + '</span><span class="dialog-art-label">CONCEPT MENU</span></div>' +
-      '<div class="dialog-inner"><span class="section-kicker">A CUB CRITICS SAMPLE</span><h2 id="dialog-title">' + escapeHtml(venue.name) + '</h2>' +
+      '<span aria-hidden="true">' + venue.emoji + '</span><span class="dialog-art-label">' + (liveSource ? 'CAMPUS DINING' : 'INTERACTIVE DEMO') + '</span></div>' +
+      '<div class="dialog-inner"><span class="section-kicker">' + (liveSource ? 'TOWSON DINING DIRECTORY' : 'CUB CRITICS SAMPLE') + '</span><h2 id="dialog-title">' + escapeHtml(venue.name) + '</h2>' +
       '<p>' + escapeHtml(venue.summary) + '</p><div class="dialog-stats">' +
-      '<span>★ ' + venue.rating.toFixed(1) + ' fictional rating</span><span>' + venue.reviews + ' sample reviews</span><span>' + (venue.open ? 'Sample open' : 'Sample closed') + '</span></div>' +
+      '<span>★ ' + venue.rating.toFixed(1) + ' fictional rating</span><span>' + venue.reviews + ' sample reviews</span><span>' + (liveSource ? (venue.open ? 'Open now' : 'Closed now') : (venue.open ? 'Sample open' : 'Sample closed')) + '</span></div>' +
       '<div class="dialog-heading-row"><h3>What’s on the sample menu?</h3>' +
       '<button class="dialog-save' + (isSaved ? ' is-saved' : '') + '" data-save="' + venue.id + '" type="button" aria-pressed="' + isSaved + '">' +
       (isSaved ? '♥ Saved' : '♡ Save venue') + '</button></div>' +
       '<ul class="sample-menu">' + venue.menu.map((item, index) => '<li><span>' + escapeHtml(item) + '</span><small>0' + (index + 1) + '</small></li>').join("") + '</ul>' +
       '<p class="dialog-warning"><strong>Prototype only.</strong> These names, ratings, sample hours, menu items and review counts are fictional. Real menus and student reviews are not connected yet.</p></div>';
     if (!dialog.open) dialog.showModal();
+    if (window.CubReviewExperience) window.CubReviewExperience.show(venue, tab);
     $("dialog-close").focus();
   }
 
   function toggleSave(id, origin) {
-    const venue = sampleVenues.find(item => item.id === id);
+    const venue = activeVenues.find(item => item.id === id);
     if (!venue) return;
     const wasSaved = saved.has(id);
     if (wasSaved) saved.delete(id);
@@ -144,11 +153,26 @@ function init() {
     $("search").value = "";
     $("sort").value = "rating";
     $("open-only").checked = false;
+    if (liveSource) { ++searchSeq; clearTimeout(searchTimer); refreshLive(); }
     render();
     announce("Filters cleared. Your saved venues were kept.");
   }
 
-  $("search").addEventListener("input", event => { filters.query = event.target.value; render(); });
+  $("search").addEventListener("input", event => {
+    filters.query = event.target.value;
+    if (!liveSource) { render(); return; }
+    clearTimeout(searchTimer);
+    const seq = ++searchSeq;
+    searchTimer = setTimeout(async () => {
+      try {
+        const results = await window.CubReviewExperience.searchDirectory(filters.query);
+        if (seq !== searchSeq) return;
+        activeVenues = results;
+        renderCategories();
+        render();
+      } catch (error) { window.CubReviewExperience.message('Search failed: ' + error.message, true); }
+    }, 230);
+  });
   $("sort").addEventListener("change", event => { filters.sort = event.target.value; render(); });
   $("open-only").addEventListener("change", event => { filters.openOnly = event.target.checked; render(); });
   $("saved-only").addEventListener("click", () => { filters.savedOnly = !filters.savedOnly; render(); });
@@ -162,14 +186,14 @@ function init() {
   $("reset-filters").addEventListener("click", reset);
   $("empty-reset").addEventListener("click", () => { reset(); $("search").focus(); });
   $("random-venue").addEventListener("click", event => {
-    const matches = filterVenues(sampleVenues, filters, saved);
+    const matches = filterVenues(activeVenues, liveSource ? { ...filters, query: "" } : filters, saved);
     if (matches.length) showVenue(matches[Math.floor(Math.random() * matches.length)], event.currentTarget);
   });
   grid.addEventListener("click", event => {
     const saveButton = event.target.closest("[data-save]");
     if (saveButton) { toggleSave(Number(saveButton.dataset.save), saveButton); return; }
     const detailsButton = event.target.closest("[data-venue]");
-    if (detailsButton) showVenue(sampleVenues.find(venue => venue.id === Number(detailsButton.dataset.venue)), detailsButton);
+    if (detailsButton) showVenue(activeVenues.find(venue => venue.id === Number(detailsButton.dataset.venue)), detailsButton, detailsButton.dataset.tab || "reviews");
   });
   $("dialog-content").addEventListener("click", event => {
     const button = event.target.closest("[data-save]");
@@ -203,7 +227,35 @@ function init() {
     document.addEventListener("keydown", event => { if (event.key === "Escape" && nav.classList.contains("nav-open")) { closeMenu(); menuButton.focus(); } });
     document.addEventListener("click", event => { if (!nav.contains(event.target) && !menuButton.contains(event.target)) closeMenu(); });
   }
+  async function refreshLive() {
+    if (!liveSource) { render(); return; }
+    try {
+      activeVenues = await window.CubReviewExperience.searchDirectory(filters.query);
+      renderCategories();
+      render();
+    } catch (error) { window.CubReviewExperience.message('Could not refresh venues: ' + error.message, true); }
+  }
+  window.addEventListener('cub:open-venue', event => {
+    const target = activeVenues.find(item => item.id === event.detail?.id);
+    if (target) showVenue(target, $('my-reviews'), event.detail?.tab || 'reviews');
+  });
+  if (window.CubReviewExperience) {
+    window.CubReviewExperience.init();
+    window.CubReviewExperience.onDataChanged = refreshLive;
+  }
   render();
+  if (window.CubReviewExperience?.configured) {
+    window.CubReviewExperience.connect().then(venues => {
+      if (!venues) return;
+      liveSource = true;
+      activeVenues = venues;
+      renderCategories();
+      render();
+    }).catch(error => {
+      window.CubReviewExperience.updateMode(error);
+      window.CubReviewExperience.message('The API could not connect: ' + error.message, true);
+    });
+  }
 }
 
 if (typeof document !== "undefined") {
