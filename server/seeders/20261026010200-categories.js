@@ -3,7 +3,7 @@
 // Starting categories, taken from the "Venue" definition in the SRS glossary
 // (dining hall, café, grab-and-go). The final list is TBD-3; admins can add more
 // later through the app (SQ#6). Safe to run more than once.
-const CATEGORIES = ['Dining Hall', 'Café', 'Grab-and-Go'];
+const CATEGORIES = ['Dining Hall', 'Café', 'Grab-and-Go', 'Fast Food'];
 
 module.exports = {
   async up(queryInterface) {
